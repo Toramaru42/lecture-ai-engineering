@@ -180,6 +180,17 @@ st.write(f"こんにちは、{name}さん！")
 # 
 # st.markdown('<p class="big-font">これはカスタムCSSでスタイリングされたテキストです！</p>', unsafe_allow_html=True)
 
+# ダークモード
+# mode = st.sidebar.radio("テーマモード", ["ライト", "ダーク"])
+# if mode == "ダーク":
+#     st.markdown("<style>body { background-color: #111; color: white; }</style>", unsafe_allow_html=True)
+
+# 日時入力
+# date = st.date_input("日付を選択")
+# time = st.time_input("時間を選択")
+# st.write(f"選択された日時: {date} {time}")
+
+
 # ============================================
 # デモの使用方法
 # ============================================
