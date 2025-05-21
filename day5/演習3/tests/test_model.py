@@ -13,9 +13,12 @@ from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 
 # テスト用データとモデルパスを定義
-DATA_PATH = os.path.join(os.path.dirname(__file__), "../data/Titanic.csv")
-MODEL_DIR = os.path.join(os.path.dirname(__file__), "../models")
+# テスト用データとモデルパスの定義
+BASE_DIR = os.path.dirname(os.path.dirname(__file__))
+DATA_PATH = os.path.join(BASE_DIR, "data", "Titanic.csv")
+MODEL_DIR = os.path.join(BASE_DIR, "models")
 MODEL_PATH = os.path.join(MODEL_DIR, "titanic_model.pkl")
+PREVIOUS_MODEL_PATH = os.path.join(MODEL_DIR, "titanic_model_previous.pkl")
 
 
 @pytest.fixture
@@ -73,7 +76,14 @@ def preprocessor():
     return preprocessor
 
 
-@pytest.fixture
+@pytest.fixture(scope="session", autouse=True)
+def backup_current_model():
+    """現モデルを過去モデルとしてバックアップ（存在する場合のみ）"""
+    if os.path.exists(MODEL_PATH):
+        os.makedirs(MODEL_DIR, exist_ok=True)
+        with open(MODEL_PATH, "rb") as src, open(PREVIOUS_MODEL_PATH, "wb") as dst:
+            dst.write(src.read())
+            
 def train_model(sample_data, preprocessor):
     """モデルの学習とテストデータの準備"""
     # データの分割とラベル変換
@@ -171,3 +181,37 @@ def test_model_reproducibility(sample_data, preprocessor):
     assert np.array_equal(
         predictions1, predictions2
     ), "モデルの予測結果に再現性がありません"
+
+def test_model_regression_against_previous(train_model, sample_data):
+    """過去モデルと現在のモデルを比較し、精度や推論時間の劣化がないか検証"""
+    model, X_test, y_test = train_model
+
+    # 精度と推論時間を測定
+    start_time = time.time()
+    y_pred = model.predict(X_test)
+    inference_time = time.time() - start_time
+    current_accuracy = accuracy_score(y_test, y_pred)
+
+    # 過去モデルの読み込み
+    previous_model_path = os.path.join(MODEL_DIR, "titanic_model_previous.pkl")
+    if not os.path.exists(previous_model_path):
+        pytest.skip("過去モデル（titanic_model_previous.pkl）が存在しないためスキップ")
+
+    with open(previous_model_path, "rb") as f:
+        previous_model = pickle.load(f)
+
+    # 過去モデルの精度と推論時間を測定
+    start_time_prev = time.time()
+    prev_pred = previous_model.predict(X_test)
+    prev_inference_time = time.time() - start_time_prev
+    prev_accuracy = accuracy_score(y_test, prev_pred)
+
+    # 許容劣化幅（例：精度が 2% 以内に収まる、推論時間は増えても 0.2秒以内）
+    accuracy_threshold = 0.02
+    time_threshold = 0.2
+
+    assert current_accuracy >= prev_accuracy - accuracy_threshold, \
+        f"モデル精度が劣化しています: 現在={current_accuracy:.4f}, 過去={prev_accuracy:.4f}"
+
+    assert inference_time <= prev_inference_time + time_threshold, \
+        f"推論時間が劣化しています: 現在={inference_time:.4f}s, 過去={prev_inference_time:.4f}s"
