@@ -83,6 +83,7 @@ def backup_current_model():
         with open(MODEL_PATH, "rb") as src, open(PREVIOUS_MODEL_PATH, "wb") as dst:
             dst.write(src.read())
 
+
 @pytest.fixture
 def train_model(sample_data, preprocessor):
     """モデルの学習とテストデータの準備"""
